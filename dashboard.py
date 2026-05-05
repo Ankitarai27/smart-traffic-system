@@ -1,5 +1,6 @@
 
 import tempfile
+import time
 from pathlib import Path
 
 import cv2
@@ -12,11 +13,15 @@ st.title("🚦 Smart Traffic Control System (Live Analytics)")
 
 st.markdown("Upload a video to see **live detection + lane counting** while it processes.")
 
+st.caption("If deployment shows old errors, force a redeploy/restart to pick latest commit.")
+
 show_boxes = st.sidebar.checkbox("Show vehicle bounding boxes", value=True)
 box_color_name = st.sidebar.selectbox("Bounding box color", ["Green", "Red", "Blue", "Yellow"])
 process_every_n = st.sidebar.slider("Process every Nth frame", min_value=1, max_value=8, value=2)
 infer_size = st.sidebar.select_slider("Inference resolution", options=[320, 416, 512, 640], value=416)
-save_output = st.sidebar.checkbox("Save and show analyzed video after processing", value=True)
+
+save_output = st.sidebar.checkbox("Save and show analyzed video after processing", value=False)
+
 
 BOX_COLORS = {
     "Green": (0, 255, 0),
@@ -34,8 +39,6 @@ VEHICLE_CLASSES = {"car", "truck", "bus", "motorbike", "motorcycle"}
 @st.cache_resource
 def load_model():
     return YOLO("yolov8n.pt")
-
-
 
 uploaded_file = st.file_uploader("Upload Traffic Video", type=["mp4"])
 
@@ -64,6 +67,14 @@ if uploaded_file is not None:
         output_path = output_file.name
         output_file.close()
         writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
+
+
+    live_frame = st.empty()
+    progress = st.progress(0, text="Running live analytics...")
+
+    frame_index = 0
+    cached_lane_counts = [0, 0]
+    last_boxes = []
 
     live_frame = st.empty()
     progress = st.progress(0, text="Running live analytics...")
@@ -94,19 +105,44 @@ if uploaded_file is not None:
                     if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
                         lane_counts[i] += 1
 
-                if show_boxes:
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), BOX_COLORS[box_color_name], 2)
-                    cv2.putText(
-                        frame,
-                        label,
-                        (x1, max(y1 - 10, 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
-                        BOX_COLORS[box_color_name],
-                        2,
-                    )
+        frame = cv2.resize(frame, (width, height))
+
+        if frame_index % process_every_n == 0:
+            lane_counts = [0, 0]
+            detected_boxes = []
+            results = model.predict(frame, imgsz=infer_size, verbose=False)[0]
+
+            for box in results.boxes:
+                cls = int(box.cls[0])
+                label = model.names[cls]
+                if label not in VEHICLE_CLASSES:
+                    continue
+
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                cx = (x1 + x2) // 2
+                cy = (y1 + y2) // 2
+
+                for i, region in enumerate(LANE_REGIONS):
+                    if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
+                        lane_counts[i] += 1
+
+                detected_boxes.append((x1, y1, x2, y2, label))
 
             cached_lane_counts = lane_counts
+            last_boxes = detected_boxes
+
+        if show_boxes:
+            for x1, y1, x2, y2, label in last_boxes:
+                cv2.rectangle(frame, (x1, y1), (x2, y2), BOX_COLORS[box_color_name], 2)
+                cv2.putText(
+                    frame,
+                    label,
+                    (x1, max(y1 - 10, 20)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    BOX_COLORS[box_color_name],
+                    2,
+                )
 
         for i, region in enumerate(LANE_REGIONS):
             cv2.polylines(frame, [region], True, (255, 0, 0), 2)
@@ -115,6 +151,7 @@ if uploaded_file is not None:
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
         live_frame.image(frame, channels="BGR", caption="Live Analytics")
+
 
         if writer is not None:
             writer.write(frame)
