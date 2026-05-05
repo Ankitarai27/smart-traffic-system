@@ -1,3 +1,4 @@
+
 import tempfile
 import time
 from pathlib import Path
@@ -7,7 +8,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
-
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Control System (Live Analytics)")
 
@@ -19,7 +19,9 @@ show_boxes = st.sidebar.checkbox("Show vehicle bounding boxes", value=True)
 box_color_name = st.sidebar.selectbox("Bounding box color", ["Green", "Red", "Blue", "Yellow"])
 process_every_n = st.sidebar.slider("Process every Nth frame", min_value=1, max_value=8, value=2)
 infer_size = st.sidebar.select_slider("Inference resolution", options=[320, 416, 512, 640], value=416)
+
 save_output = st.sidebar.checkbox("Save and show analyzed video after processing", value=False)
+
 
 BOX_COLORS = {
     "Green": (0, 255, 0),
@@ -38,13 +40,11 @@ VEHICLE_CLASSES = {"car", "truck", "bus", "motorbike", "motorcycle"}
 def load_model():
     return YOLO("yolov8n.pt")
 
-
 uploaded_file = st.file_uploader("Upload Traffic Video", type=["mp4"])
 
 if uploaded_file is not None:
     st.success("Video uploaded successfully!")
     video_bytes = uploaded_file.getvalue()
-
     source_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     source_file.write(video_bytes)
     source_path = source_file.name
@@ -68,6 +68,7 @@ if uploaded_file is not None:
         output_file.close()
         writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
 
+
     live_frame = st.empty()
     progress = st.progress(0, text="Running live analytics...")
 
@@ -75,10 +76,34 @@ if uploaded_file is not None:
     cached_lane_counts = [0, 0]
     last_boxes = []
 
+    live_frame = st.empty()
+    progress = st.progress(0, text="Running live analytics...")
+
+    frame_index = 0
+    cached_lane_counts = [0, 0]
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
+        frame = cv2.resize(frame, (width, height))
+
+        if frame_index % process_every_n == 0:
+            lane_counts = [0, 0]
+            results = model.predict(frame, imgsz=infer_size, verbose=False)[0]
+
+            for box in results.boxes:
+                cls = int(box.cls[0])
+                label = model.names[cls]
+                if label not in VEHICLE_CLASSES:
+                    continue
+
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                cx = (x1 + x2) // 2
+                cy = (y1 + y2) // 2
+
+                for i, region in enumerate(LANE_REGIONS):
+                    if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
+                        lane_counts[i] += 1
 
         frame = cv2.resize(frame, (width, height))
 
@@ -126,7 +151,7 @@ if uploaded_file is not None:
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
         live_frame.image(frame, channels="BGR", caption="Live Analytics")
-        time.sleep(0.01)
+
 
         if writer is not None:
             writer.write(frame)
