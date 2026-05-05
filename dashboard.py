@@ -9,6 +9,7 @@ from ultralytics import YOLO
 
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Live AI")
+
 st.markdown("Upload video to see full processed output with vehicle detection.")
 
 show_boxes = st.sidebar.checkbox("Show boxes", True)
@@ -26,6 +27,7 @@ def load_model():
 
 
 uploaded_file = st.file_uploader("Upload Video", type=["mp4"])
+
 preview_container = st.container()
 with preview_container:
     st.subheader("🎥 Live Detection Preview")
@@ -38,6 +40,7 @@ if uploaded_file:
     src_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     src_file.write(uploaded_file.read())
     src_file.flush()
+
 
     cap = cv2.VideoCapture(src_file.name)
     if not cap.isOpened():
@@ -66,6 +69,7 @@ if uploaded_file:
     st.success("▶️ Processing started...")
     st.info("Live preview is shown below while the full detected video is generated.")
 
+
     progress = st.progress(0)
 
     metric_col1, metric_col2, metric_col3 = st.columns(3)
@@ -73,18 +77,19 @@ if uploaded_file:
     lane2_metric = metric_col2.empty()
     active_metric = metric_col3.empty()
 
+
     frame_id = 0
 
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-
         frame = cv2.resize(frame, (width, height))
         results = model(frame, verbose=False)[0]
 
         lane_counts = [0, 0]
         boxes = []
+
 
         for box in results.boxes:
             cls = int(box.cls[0])
