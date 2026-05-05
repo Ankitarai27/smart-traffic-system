@@ -182,13 +182,13 @@ if uploaded_file:
         st.success("Analyzed video ready")
 
         time.sleep(1)  # ensure file is saved
-        st.video(output_path)  # ✅ IMPORTANT FIX
+        with open(output_path, "rb") as f:
+            video_bytes = f.read()
+            st.video(video_bytes)
 
     # Cleanup
     try:
         Path(video_path).unlink()
-        if output_path:
-            Path(output_path).unlink()
     except:
         pass
 
