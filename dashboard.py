@@ -28,6 +28,8 @@ def load_model():
 
 uploaded_file = st.file_uploader("Upload Video", type=["mp4"])
 
+stframe = st.empty()
+
 if uploaded_file:
     with open("traffic_data.csv", "w") as f:
         f.write("")
@@ -36,8 +38,8 @@ if uploaded_file:
     src_file.write(uploaded_file.read())
     src_file.flush()
 
-    cap = cv2.VideoCapture(src_file.name)
 
+    cap = cv2.VideoCapture(src_file.name)
     if not cap.isOpened():
         st.error("❌ Video not opening")
         st.stop()
@@ -64,10 +66,8 @@ if uploaded_file:
     st.success("▶️ Processing started...")
     st.info("Live preview is shown below while the full detected video is generated.")
 
-    metric_col1, metric_col2, metric_col3 = st.columns(3)
-    lane1_metric = metric_col1.empty()
-    lane2_metric = metric_col2.empty()
-    active_metric = metric_col3.empty()
+
+    progress = st.progress(0)
 
     metric_col1, metric_col2, metric_col3 = st.columns(3)
     lane1_metric = metric_col1.empty()
@@ -82,13 +82,13 @@ if uploaded_file:
             break
         frame = cv2.resize(frame, (width, height))
         results = model(frame, verbose=False)[0]
+
         lane_counts = [0, 0]
         boxes = []
 
         for box in results.boxes:
             cls = int(box.cls[0])
             label = model.names[cls]
-
             if label not in VEHICLES:
                 continue
 
