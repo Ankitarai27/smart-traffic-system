@@ -10,15 +10,13 @@ import os
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Live AI")
 
-st.markdown("Upload video to see full processed output with vehicle detection.")
-
-# Sidebar Settings
+# --- SIDEBAR ---
 show_boxes = st.sidebar.checkbox("Show boxes", True)
 
-# Constants
+# --- CONSTANTS ---
 LANE_REGIONS = [
-    np.array([[0, 0], [700, 0], [700, 400], [0, 400]]),
-    np.array([[700, 0], [1280, 0], [1280, 400], [700, 400]]),
+    np.array([[0, 200], [640, 200], [640, 720], [0, 720]]),  # Adjusted for better visibility
+    np.array([[640, 200], [1280, 200], [1280, 720], [640, 720]]),
 ]
 VEHICLES = {"car", "truck", "bus", "motorbike", "motorcycle"}
 
@@ -28,69 +26,50 @@ def load_model():
 
 uploaded_file = st.file_uploader("Upload Video", type=["mp4", "mov", "avi"])
 
-preview_container = st.container()
-with preview_container:
-    st.subheader("🎥 Live Detection Preview")
-    stframe = st.empty()
-
 if uploaded_file:
-    # Reset CSV
-    with open("traffic_data.csv", "w") as f:
-        f.write("")
-
-    # Save uploaded file to a temporary location
+    # Save the upload to a temp file
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     tfile.write(uploaded_file.read())
-    
+    tfile.close() # Close so OpenCV can open it
+
     cap = cv2.VideoCapture(tfile.name)
-    if not cap.isOpened():
-        st.error("❌ Video not opening")
-        st.stop()
+    
+    # Video Properties
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    
+    # We use 'avc1' (H.264) which is the most browser-compatible codec
+    # If this fails on your machine, it means you don't have the H.264 plugin for OpenCV
+    output_path = "final_output.mp4"
+    fourcc = cv2.VideoWriter_fourcc(*'H264') 
+    writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+    # UI Elements
+    st.subheader("🎥 Live AI Processing")
+    st_frame = st.empty()
+    progress_bar = st.progress(0)
+    
+    col1, col2, col3 = st.columns(3)
+    m1 = col1.empty()
+    m2 = col2.empty()
+    m3 = col3.empty()
 
     model = load_model()
-
-    # Get Video Properties
-    width = 1280
-    height = 720
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    if fps <= 1 or fps > 120:
-        fps = 25
-
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    
-    # Output file handling - Use a static name to avoid tempfile permission issues on Windows
-    out_path = "processed_output.mp4"
-    # 'avc1' is the H.264 codec which is web-friendly
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
-    writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
-
-    st.success("▶️ Processing started...")
-    progress = st.progress(0)
-
-    # Metrics Layout
-    metric_col1, metric_col2, metric_col3 = st.columns(3)
-    lane1_metric = metric_col1.empty()
-    lane2_metric = metric_col2.empty()
-    active_metric = metric_col3.empty()
-
-    frame_id = 0
+    traffic_history = []
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
-            
-        frame = cv2.resize(frame, (width, height))
-        results = model(frame, verbose=False)[0]
 
+        results = model(frame, verbose=False)[0]
         lane_counts = [0, 0]
-        boxes = []
 
         for box in results.boxes:
             cls = int(box.cls[0])
             label = model.names[cls]
-            if label not in VEHICLES:
-                continue
+            if label not in VEHICLES: continue
 
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
@@ -98,68 +77,48 @@ if uploaded_file:
             for i, region in enumerate(LANE_REGIONS):
                 if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
                     lane_counts[i] += 1
-
-            boxes.append((x1, y1, x2, y2, label))
-
-        # Emergency Detection Logic
-        if any(label == "bus" for *_, label in boxes):
-            cv2.putText(frame, "🚨 EMERGENCY!", (400, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 5)
-
-        # Drawing
-        if show_boxes:
-            for x1, y1, x2, y2, label in boxes:
+            
+            if show_boxes:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
+        # Drawing Lanes
         active_lane = int(np.argmax(lane_counts))
         for i, region in enumerate(LANE_REGIONS):
             color = (0, 255, 0) if i == active_lane else (0, 0, 255)
             cv2.polylines(frame, [region], True, (255, 0, 0), 2)
-            x, y = region[0]
-            cv2.putText(frame, f"Lane {i+1}: {lane_counts[i]}", (x + 10, y + 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            cv2.putText(frame, "GREEN" if i == active_lane else "RED", (x + 10, y + 80), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
+            cv2.putText(frame, f"L{i+1}: {lane_counts[i]}", (region[0][0]+10, region[0][1]+30), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-        # Update CSV and Metrics
-        with open("traffic_data.csv", "a") as f:
-            f.write(f"{lane_counts[0]},{lane_counts[1]}\n")
-
-        lane1_metric.metric("Lane 1 Count", lane_counts[0])
-        lane2_metric.metric("Lane 2 Count", lane_counts[1])
-        active_metric.metric("Active Green Lane", active_lane + 1)
-
-        # Write to File
-        writer.write(frame)
+        # Update Metrics
+        m1.metric("Lane 1", lane_counts[0])
+        m2.metric("Lane 2", lane_counts[1])
+        m3.metric("Green Signal", f"Lane {active_lane + 1}")
         
-        # Display Preview
-        # Streamlit needs RGB; OpenCV uses BGR
-        preview_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(preview_frame, channels="RGB", use_column_width=True)
+        traffic_history.append(lane_counts)
 
-        frame_id += 1
-        if total_frames > 0:
-            progress.progress(min(frame_id / total_frames, 1.0))
+        # 1. SHOW LIVE PREVIEW (Convert BGR to RGB)
+        st_frame.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB")
+        
+        # 2. WRITE TO FILE
+        writer.write(frame)
 
     cap.release()
     writer.release()
-
-    st.success("✅ Processing complete!")
     
-    # Display Result Video
-    # Note: If the video still doesn't play in your browser, 
-    # it is because of the mp4v codec. 
-    # You may need to use 'avc1' or convert with FFmpeg.
-    with open(out_path, 'rb') as v_file:
-        video_bytes = v_file.read()
-        st.video(video_bytes)
+    # --- DISPLAY FINAL VIDEO ---
+    st.success("✅ Processing Complete!")
+    if os.path.exists(output_path):
+        with open(output_path, 'rb') as f:
+            video_bytes = f.read()
+            st.video(video_bytes)
+    
+    # Save CSV
+    df = pd.DataFrame(traffic_history, columns=["Lane 1", "Lane 2"])
+    df.to_csv("traffic_data.csv", index=False)
+    
+    st.subheader("📊 Traffic Trends")
+    st.line_chart(df)
 
-# Analytics Section
-st.divider()
-st.subheader("📊 Historical Traffic Trends")
-try:
-    df = pd.read_csv("traffic_data.csv", names=["Lane 1", "Lane 2"])
-    if not df.empty:
-        st.line_chart(df)
-    else:
-        st.info("Waiting for traffic data...")
-except Exception:
-    st.warning("No data found to plot.")
+    # Cleanup temp file
+    os.remove(tfile.name)
