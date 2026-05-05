@@ -13,7 +13,7 @@ st.title("🚦 Smart Traffic Control System")
 
 st.markdown("Upload a video to see **live detection + lane counting + emergency priority**.")
 
-# Sidebar settings
+# Sidebar
 show_boxes = st.sidebar.checkbox("Show bounding boxes", True)
 process_every_n = st.sidebar.slider("Process every N frames", 1, 8, 3)
 infer_size = st.sidebar.select_slider("Resolution", [320, 416, 512, 640], value=416)
@@ -40,7 +40,7 @@ if uploaded_file:
 
     st.success("Video uploaded!")
 
-    # Save uploaded file
+    # Save uploaded video
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     tfile.write(uploaded_file.read())
     video_path = tfile.name
@@ -55,13 +55,14 @@ if uploaded_file:
     width, height = 1280, 720
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    # Video writer
+    # Output video
     writer = None
     output_path = None
 
     if save_output:
         output_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
         output_path = output_file.name
+
         writer = cv2.VideoWriter(
             output_path,
             cv2.VideoWriter_fourcc(*"mp4v"),
@@ -106,7 +107,6 @@ if uploaded_file:
                 cx = (x1 + x2) // 2
                 cy = (y1 + y2) // 2
 
-                # Lane check
                 for i, region in enumerate(LANE_REGIONS):
                     if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
                         lane_counts[i] += 1
@@ -116,15 +116,15 @@ if uploaded_file:
             cached_lane_counts = lane_counts
             last_boxes = detected_boxes
 
-        # Default lane selection
+        # Default signal logic
         active_lane = int(np.argmax(cached_lane_counts))
 
-        # 🚑 Emergency detection (bus = ambulance)
+        # 🚑 Emergency detection (bus = ambulance simulation)
         emergency_detected = any(label == "bus" for _, _, _, _, label in last_boxes)
 
         if emergency_detected:
             active_lane = int(np.argmax(cached_lane_counts))
-            cv2.putText(frame, "🚑 EMERGENCY VEHICLE DETECTED!",
+            cv2.putText(frame, "🚑 EMERGENCY VEHICLE!",
                         (350, 50),
                         cv2.FONT_HERSHEY_SIMPLEX, 1,
                         (0, 0, 255), 3)
@@ -148,14 +148,14 @@ if uploaded_file:
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
             cv2.putText(frame,
-                        f"{'GREEN' if i == active_lane else 'RED'}",
+                        "GREEN" if i == active_lane else "RED",
                         (x + 10, y + 80),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         1,
                         color,
                         3)
 
-        # Save data
+        # Save traffic data
         with open("traffic_data.csv", "a") as f:
             f.write(f"{cached_lane_counts[0]},{cached_lane_counts[1]}\n")
 
@@ -177,11 +177,12 @@ if uploaded_file:
 
     progress.empty()
 
-    # Show final video
+    # ✅ FIXED VIDEO DISPLAY
     if save_output and output_path:
         st.success("Analyzed video ready")
-        with open(output_path, "rb") as f:
-            st.video(f.read())
+
+        time.sleep(1)  # ensure file is saved
+        st.video(output_path)  # ✅ IMPORTANT FIX
 
     # Cleanup
     try:
