@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
-from siren_detection import detect_siren
 
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Control System")
@@ -16,7 +15,7 @@ st.markdown("Upload a video to see **live detection + lane counting + emergency 
 
 # Sidebar settings
 show_boxes = st.sidebar.checkbox("Show bounding boxes", True)
-process_every_n = st.sidebar.slider("Process every N frames", 1, 8, 2)
+process_every_n = st.sidebar.slider("Process every N frames", 1, 8, 3)
 infer_size = st.sidebar.select_slider("Resolution", [320, 416, 512, 640], value=416)
 save_output = st.sidebar.checkbox("Save analyzed video", True)
 
@@ -63,18 +62,15 @@ if uploaded_file:
     if save_output:
         output_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
         output_path = output_file.name
-        writer = cv2.VideoWriter(output_path,
-                                 cv2.VideoWriter_fourcc(*"mp4v"),
-                                 fps,
-                                 (width, height))
+        writer = cv2.VideoWriter(
+            output_path,
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            fps,
+            (width, height)
+        )
 
-    # UI placeholders
     stframe = st.empty()
     progress = st.progress(0)
-
-    # Siren control
-    last_siren_check = time.time()
-    siren_detected = False
 
     frame_index = 0
     cached_lane_counts = [0, 0]
@@ -92,7 +88,12 @@ if uploaded_file:
             lane_counts = [0, 0]
             detected_boxes = []
 
-            results = model.predict(frame, imgsz=infer_size, verbose=False)[0]
+            results = model.predict(
+                frame,
+                imgsz=infer_size,
+                conf=0.4,
+                verbose=False
+            )[0]
 
             for box in results.boxes:
                 cls = int(box.cls[0])
@@ -105,6 +106,7 @@ if uploaded_file:
                 cx = (x1 + x2) // 2
                 cy = (y1 + y2) // 2
 
+                # Lane check
                 for i, region in enumerate(LANE_REGIONS):
                     if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
                         lane_counts[i] += 1
@@ -114,6 +116,19 @@ if uploaded_file:
             cached_lane_counts = lane_counts
             last_boxes = detected_boxes
 
+        # Default lane selection
+        active_lane = int(np.argmax(cached_lane_counts))
+
+        # 🚑 Emergency detection (bus = ambulance)
+        emergency_detected = any(label == "bus" for _, _, _, _, label in last_boxes)
+
+        if emergency_detected:
+            active_lane = int(np.argmax(cached_lane_counts))
+            cv2.putText(frame, "🚑 EMERGENCY VEHICLE DETECTED!",
+                        (350, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1,
+                        (0, 0, 255), 3)
+
         # Draw boxes
         if show_boxes:
             for x1, y1, x2, y2, label in last_boxes:
@@ -121,27 +136,28 @@ if uploaded_file:
                 cv2.putText(frame, label, (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, BOX_COLOR, 2)
 
-        # Draw lanes
+        # Draw lanes + signal
         for i, region in enumerate(LANE_REGIONS):
+            color = (0, 255, 0) if i == active_lane else (0, 0, 255)
+
             cv2.polylines(frame, [region], True, (255, 0, 0), 2)
             x, y = region[0]
+
             cv2.putText(frame, f"Lane {i+1}: {cached_lane_counts[i]}",
                         (x + 10, y + 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-        # 🚨 Siren detection (non-blocking)
-        if time.time() - last_siren_check > 3:
-            siren_detected = detect_siren(duration=0.3)
-            last_siren_check = time.time()
+            cv2.putText(frame,
+                        f"{'GREEN' if i == active_lane else 'RED'}",
+                        (x + 10, y + 80),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        color,
+                        3)
 
-        # 🚑 Priority logic
-        if siren_detected:
-            active_lane = np.argmax(cached_lane_counts)
-
-            cv2.putText(frame, "🚨 SIREN DETECTED!",
-                        (400, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1,
-                        (0, 0, 255), 3)
+        # Save data
+        with open("traffic_data.csv", "a") as f:
+            f.write(f"{cached_lane_counts[0]},{cached_lane_counts[1]}\n")
 
         # Show frame
         stframe.image(frame, channels="BGR")
@@ -177,7 +193,7 @@ if uploaded_file:
 
 
 # 📊 Graph
-st.subheader("Traffic Data")
+st.subheader("📊 Traffic Data")
 
 try:
     data = pd.read_csv("traffic_data.csv", header=None)
