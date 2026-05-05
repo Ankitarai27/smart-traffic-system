@@ -1,3 +1,4 @@
+
 import tempfile
 from pathlib import Path
 
@@ -17,11 +18,14 @@ st.markdown(
 """
 )
 
+
 playback_mode = st.sidebar.radio("Playback mode", ["Smooth playback", "Analytics mode"], index=0)
 run_detection = st.sidebar.checkbox("Run YOLO vehicle detection", value=True)
 show_boxes = st.sidebar.checkbox("Show vehicle bounding boxes", value=True)
 box_color_name = st.sidebar.selectbox("Bounding box color", ["Green", "Red", "Blue", "Yellow"])
+
 process_every_n = st.sidebar.slider("Process every Nth frame", min_value=1, max_value=12, value=4)
+
 infer_size = st.sidebar.select_slider("Inference resolution", options=[320, 416, 512, 640], value=416)
 
 BOX_COLORS = {
@@ -51,6 +55,7 @@ if uploaded_file is not None:
 
     if playback_mode == "Smooth playback":
         st.video(video_bytes)
+
     else:
         source_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
         source_file.write(video_bytes)
@@ -153,6 +158,7 @@ if uploaded_file is not None:
                 Path(tmp_path).unlink(missing_ok=True)
             except OSError:
                 pass
+
 
 st.subheader("📊 Traffic Data")
 
