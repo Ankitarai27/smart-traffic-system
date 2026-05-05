@@ -28,7 +28,10 @@ def load_model():
 
 uploaded_file = st.file_uploader("Upload Video", type=["mp4"])
 
-stframe = st.empty()
+preview_container = st.container()
+with preview_container:
+    st.subheader("🎥 Live Detection Preview")
+    stframe = st.empty()
 
 if uploaded_file:
     with open("traffic_data.csv", "w") as f:
@@ -74,6 +77,7 @@ if uploaded_file:
     lane2_metric = metric_col2.empty()
     active_metric = metric_col3.empty()
 
+
     frame_id = 0
 
     while True:
@@ -85,6 +89,7 @@ if uploaded_file:
 
         lane_counts = [0, 0]
         boxes = []
+
 
         for box in results.boxes:
             cls = int(box.cls[0])
@@ -126,7 +131,8 @@ if uploaded_file:
         active_metric.metric("Active", active_lane + 1)
 
         writer.write(frame)
-        stframe.image(frame, channels="BGR", use_container_width=True)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        stframe.image(rgb_frame, channels="RGB")
 
         frame_id += 1
         progress.progress(min(frame_id / total_frames, 1.0))
