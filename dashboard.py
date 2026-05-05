@@ -12,17 +12,21 @@ st.title("🚦 Smart Traffic Control System")
 
 st.markdown(
     """
+
 Use **Smooth playback** for a normal running video.
 Use **Analytics mode** when you want lane counts + detection overlays (heavier, so it may be less smooth).
+
 """
 )
 
 # ---- Controls ----
+
 playback_mode = st.sidebar.radio("Playback mode", ["Smooth playback", "Analytics mode"], index=0)
 run_detection = st.sidebar.checkbox("Run YOLO vehicle detection", value=True)
 show_boxes = st.sidebar.checkbox("Show vehicle bounding boxes", value=True)
 box_color_name = st.sidebar.selectbox("Bounding box color", ["Green", "Red", "Blue", "Yellow"])
 process_every_n = st.sidebar.slider("Analytics speed-up (process every Nth frame)", min_value=1, max_value=6, value=2)
+
 
 BOX_COLORS = {
     "Green": (0, 255, 0),
@@ -37,9 +41,11 @@ LANE_REGIONS = [
 ]
 VEHICLE_CLASSES = {"car", "truck", "bus", "motorbike", "motorcycle"}
 
+
 @st.cache_resource
 def load_model():
     return YOLO("yolov8n.pt")
+
 
 uploaded_file = st.file_uploader("Upload Traffic Video", type=["mp4"])
 
@@ -129,6 +135,7 @@ if uploaded_file is not None:
             # Small delay to approximate original playback timing
             time.sleep(max((1.0 / fps) * 0.5, 0.005))
             frame_index += 1
+
 
         cap.release()
 
