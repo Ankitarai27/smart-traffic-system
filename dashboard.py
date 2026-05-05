@@ -70,11 +70,10 @@ if uploaded_file is not None:
 
     frame_index = 0
     cached_lane_counts = [0, 0]
-
-        cap.release()
-        writer.release()
-        progress.empty()
-
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
         frame = cv2.resize(frame, (width, height))
 
         if frame_index % process_every_n == 0:
