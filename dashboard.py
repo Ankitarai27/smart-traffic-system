@@ -49,27 +49,33 @@ if uploaded_file:
     model = load_model()
 
     fps = cap.get(cv2.CAP_PROP_FPS)
-    if fps <= 0:
+    if fps is None or fps <= 1 or fps > 60:
         fps = 25
 
     width, height = 1280, 720
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     # Output video
-    writer = None
-    output_path = None
+writer = None
+output_path = None
 
-    if save_output:
-        output_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-        output_path = output_file.name
+if save_output:
+    output_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    output_path = output_file.name
 
-        writer = cv2.VideoWriter(
-            output_path,
-            cv2.VideoWriter_fourcc(*"mp4v"),
-            fps,
-            (width, height)
-        )
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps is None or fps <= 1 or fps > 60:
+        fps = 25
 
+    writer = cv2.VideoWriter(
+        output_path,
+        cv2.VideoWriter_fourcc(*"mp4v"),
+        fps,
+        (width, height)
+    )
+
+    if not writer.isOpened():
+        st.error("❌ VideoWriter failed to open")
     stframe = st.empty()
     progress = st.progress(0)
 
@@ -181,11 +187,14 @@ if uploaded_file:
     if save_output and output_path:
         st.success("Analyzed video ready")
 
-        time.sleep(1)  # ensure file is saved
+        time.sleep(2)
+
+        file_size = Path(output_path).stat().st_size
+        st.write(f"Output video size: {file_size} bytes")
+
         with open(output_path, "rb") as f:
             video_bytes = f.read()
-            st.video(video_bytes)
-
+            st.video(video_bytes, format="video/mp4")
     # Cleanup
     try:
         Path(video_path).unlink()
