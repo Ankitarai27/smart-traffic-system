@@ -1,3 +1,4 @@
+
 import tempfile
 from pathlib import Path
 
@@ -6,7 +7,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
-
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Control System (Live Analytics)")
 
@@ -36,12 +36,12 @@ def load_model():
     return YOLO("yolov8n.pt")
 
 
+
 uploaded_file = st.file_uploader("Upload Traffic Video", type=["mp4"])
 
 if uploaded_file is not None:
     st.success("Video uploaded successfully!")
     video_bytes = uploaded_file.getvalue()
-
     source_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     source_file.write(video_bytes)
     source_path = source_file.name
@@ -71,10 +71,9 @@ if uploaded_file is not None:
     frame_index = 0
     cached_lane_counts = [0, 0]
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+        cap.release()
+        writer.release()
+        progress.empty()
 
         frame = cv2.resize(frame, (width, height))
 
