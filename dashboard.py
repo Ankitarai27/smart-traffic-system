@@ -11,7 +11,7 @@ from ultralytics import YOLO
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Control System")
 
-st.markdown("Upload a video to see **live detection + lane counting + emergency priority**.")
+st.markdown("Upload a video to see live detection + emergency priority")
 
 # Sidebar
 show_boxes = st.sidebar.checkbox("Show bounding boxes", True)
@@ -36,11 +36,12 @@ def load_model():
 
 uploaded_file = st.file_uploader("Upload Traffic Video", type=["mp4"])
 
-if uploaded_file:
+# ================= MAIN =================
+if uploaded_file is not None:
 
     st.success("Video uploaded!")
 
-    # Save uploaded video
+    # Save uploaded file
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     tfile.write(uploaded_file.read())
     video_path = tfile.name
@@ -48,6 +49,11 @@ if uploaded_file:
     cap = cv2.VideoCapture(video_path)
     model = load_model()
 
+    if not cap.isOpened():
+        st.error("❌ Cannot open video")
+        st.stop()
+
+    # FPS FIX
     fps = cap.get(cv2.CAP_PROP_FPS)
     if fps is None or fps <= 1 or fps > 60:
         fps = 25
@@ -55,27 +61,24 @@ if uploaded_file:
     width, height = 1280, 720
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    # Output video
-writer = None
-output_path = None
+    # ===== VIDEO WRITER =====
+    writer = None
+    output_path = None
 
-if save_output:
-    output_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    output_path = output_file.name
+    if save_output:
+        output_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        output_path = output_file.name
 
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    if fps is None or fps <= 1 or fps > 60:
-        fps = 25
+        writer = cv2.VideoWriter(
+            output_path,
+            cv2.VideoWriter_fourcc(*"mp4v"),  # ✅ important fix
+            fps,
+            (width, height)
+        )
 
-    writer = cv2.VideoWriter(
-        output_path,
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (width, height)
-    )
+        if not writer.isOpened():
+            st.error("❌ VideoWriter failed")
 
-    if not writer.isOpened():
-        st.error("❌ VideoWriter failed to open")
     stframe = st.empty()
     progress = st.progress(0)
 
@@ -83,6 +86,7 @@ if save_output:
     cached_lane_counts = [0, 0]
     last_boxes = []
 
+    # ================= PROCESS LOOP =================
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -122,18 +126,17 @@ if save_output:
             cached_lane_counts = lane_counts
             last_boxes = detected_boxes
 
-        # Default signal logic
+        # Signal logic
         active_lane = int(np.argmax(cached_lane_counts))
 
-        # 🚑 Emergency detection (bus = ambulance simulation)
-        emergency_detected = any(label == "bus" for _, _, _, _, label in last_boxes)
+        # Emergency (bus as ambulance)
+        emergency = any(label == "bus" for _, _, _, _, label in last_boxes)
 
-        if emergency_detected:
-            active_lane = int(np.argmax(cached_lane_counts))
+        if emergency:
             cv2.putText(frame, "🚑 EMERGENCY VEHICLE!",
                         (350, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1,
-                        (0, 0, 255), 3)
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1, (0, 0, 255), 3)
 
         # Draw boxes
         if show_boxes:
@@ -142,7 +145,7 @@ if save_output:
                 cv2.putText(frame, label, (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, BOX_COLOR, 2)
 
-        # Draw lanes + signal
+        # Draw lanes
         for i, region in enumerate(LANE_REGIONS):
             color = (0, 255, 0) if i == active_lane else (0, 0, 255)
 
@@ -157,15 +160,13 @@ if save_output:
                         "GREEN" if i == active_lane else "RED",
                         (x + 10, y + 80),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        color,
-                        3)
+                        1, color, 3)
 
-        # Save traffic data
+        # Save CSV
         with open("traffic_data.csv", "a") as f:
             f.write(f"{cached_lane_counts[0]},{cached_lane_counts[1]}\n")
 
-        # Show frame
+        # Show live frame
         stframe.image(frame, channels="BGR")
 
         if writer:
@@ -183,18 +184,21 @@ if save_output:
 
     progress.empty()
 
-    # ✅ FIXED VIDEO DISPLAY
+    # ===== FINAL VIDEO =====
     if save_output and output_path:
-        st.success("Analyzed video ready")
+        st.success("✅ Analyzed video ready")
 
         time.sleep(2)
 
         file_size = Path(output_path).stat().st_size
-        st.write(f"Output video size: {file_size} bytes")
+        st.write(f"Video size: {file_size} bytes")
 
-        with open(output_path, "rb") as f:
-            video_bytes = f.read()
-            st.video(video_bytes, format="video/mp4")
+        if file_size > 1000:
+            with open(output_path, "rb") as f:
+                st.video(f.read())
+        else:
+            st.error("❌ Video file is empty")
+
     # Cleanup
     try:
         Path(video_path).unlink()
@@ -202,7 +206,7 @@ if save_output:
         pass
 
 
-# 📊 Graph
+# ===== GRAPH =====
 st.subheader("📊 Traffic Data")
 
 try:
