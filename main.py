@@ -3,11 +3,13 @@ import cv2
 import csv
 from traffic_logic import update_signal
 from ultralytics import YOLO
+from siren_detection import detect_siren
 
 last_switch_time = time.time()
 current_lane = 0
 green_time = 10
-
+last_siren_check = time.time()
+siren_detected = False
 def draw_signal(frame, active_lane):
     # Positions for 2 lanes
     positions = [(200, 600), (1000, 600)]
@@ -31,6 +33,8 @@ def draw_signal(frame, active_lane):
 # Load model
 model = YOLO("yolov8n.pt")
 
+EMERGENCY_CLASSES = ["ambulance"]  # (for future use)
+
 # Open video
 cap = cv2.VideoCapture("videos/traffic.mp4")
 
@@ -53,27 +57,31 @@ while True:
     results = model(frame, conf=0.5)[0]
 
     lane_counts = [0 for _ in LANE_REGIONS]
-
+    emergency_detected = False
+    emergency_lane = None
     
     for box in results.boxes:
         cls = int(box.cls[0])
         label = model.names[cls]
 
+        x1, y1, x2, y2 = map(int, box.xyxy[0])
+
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+
+        # 🚑 Emergency detection (simulate using bus)
+        if label == "bus":
+            emergency_detected = True
+
         if label in ["car", "truck", "bus", "motorbike"]:
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-
-            # center point
-            cx = (x1 + x2) // 2
-            cy = (y1 + y2) // 2
-
-            # check which lane
             for i, region in enumerate(LANE_REGIONS):
                 if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
                     lane_counts[i] += 1
 
-            # draw box
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
-            
+                    if label == "bus":  # treat bus as ambulance
+                        emergency_lane = i
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)     
     with open("traffic_data.csv", "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(lane_counts)
@@ -89,28 +97,48 @@ while True:
                     (x + 10, y + 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
         # 🚦 Decide signal
-        # Timer-based signal control
-    current_time = time.time()
+    # Check siren every 3 seconds (non-blocking feel)
+    if time.time() - last_siren_check > 3:
+        siren_detected = detect_siren(duration=0.3)
+        last_siren_check = time.time()
+    # 🚦 Priority logic
+    if siren_detected:
+        active_lane = 0  # OR choose most crowded lane
+        green_time = 30
 
-    if current_time - last_switch_time > green_time:
-        current_lane, green_time = update_signal(lane_counts)
-        last_switch_time = current_time
+        cv2.putText(frame, "🚨 SIREN DETECTED!", (400, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 3)
 
-    active_lane = current_lane
-    draw_signal(frame, active_lane)
-    # Show result
-    cv2.putText(frame, f"Green Lane: {active_lane + 1}",
-                (50, 650),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 3)
+    elif emergency_detected and emergency_lane is not None:
+        active_lane = emergency_lane
+        green_time = 30
 
-    cv2.putText(frame, f"Time: {green_time}s",
-                (50, 690),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 3)
+        cv2.putText(frame, "🚑 EMERGENCY VEHICLE!", (400, 100),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 3)
 
-    cv2.imshow("Lane Detection", frame)
+    else:
+        current_time = time.time()
 
-    if cv2.waitKey(1) & 0xFF == 27:
-        break
+        if current_time - last_switch_time > green_time:
+            current_lane, green_time = update_signal(lane_counts)
+            last_switch_time = current_time
+
+        active_lane = current_lane
+
+        draw_signal(frame, active_lane)
+        # Show result
+        cv2.putText(frame, f"Green Lane: {active_lane + 1}",
+                    (50, 650),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 3)
+
+        cv2.putText(frame, f"Time: {green_time}s",
+                    (50, 690),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 3)
+
+        cv2.imshow("Lane Detection", frame)
+
+        if cv2.waitKey(1) & 0xFF == 27:
+            break
 
 cap.release()
 cv2.destroyAllWindows()
