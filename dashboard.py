@@ -1,12 +1,13 @@
 
 import tempfile
-import time
+from pathlib import Path
 
 import cv2
 import numpy as np
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
+
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Control System")
 
@@ -40,9 +41,11 @@ LANE_REGIONS = [
 ]
 VEHICLE_CLASSES = {"car", "truck", "bus", "motorbike", "motorcycle"}
 
+
 @st.cache_resource
 def load_model():
     return YOLO("yolov8n.pt")
+
 
 uploaded_file = st.file_uploader("Upload Traffic Video", type=["mp4"])
 
@@ -75,14 +78,12 @@ if uploaded_file is not None:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
-
         model = load_model() if run_detection else None
 
         frame_index = 0
         cached_lane_counts = [0, 0]
 
         progress = st.progress(0, text="Generating analytics video...")
-
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -93,7 +94,6 @@ if uploaded_file is not None:
             should_process = frame_index % process_every_n == 0
 
             if should_process:
-
                 lane_counts = [0, 0]
 
                 if run_detection and model is not None:
@@ -153,10 +153,11 @@ if uploaded_file is not None:
         st.success("Analytics video ready.")
         st.video(output_path)
 
-        try:
-            os.remove(source_path)
-        except OSError:
-            pass
+        for tmp_path in (source_path, output_path):
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 st.subheader("📊 Traffic Data")
