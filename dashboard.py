@@ -11,8 +11,10 @@ st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Live AI")
 st.markdown("Upload video and detection output will start immediately.")
 
+
 # Sidebar
 show_boxes = st.sidebar.checkbox("Show boxes", True)
+
 
 LANE_REGIONS = [
     np.array([[0, 0], [700, 0], [700, 400], [0, 400]]),
@@ -33,6 +35,7 @@ if uploaded_file:
     with open("traffic_data.csv", "w") as f:
         f.write("")
 
+
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     tfile.write(uploaded_file.read())
 
@@ -43,6 +46,7 @@ if uploaded_file:
 
     model = load_model()
     stframe = st.empty()
+
 
     metric_col1, metric_col2, metric_col3 = st.columns(3)
     lane1_metric = metric_col1.empty()
@@ -132,6 +136,7 @@ if uploaded_file:
 
         with open("traffic_data.csv", "a") as f:
             f.write(f"{lane_counts[0]},{lane_counts[1]}\n")
+
 
         lane1_metric.metric("Lane 1", lane_counts[0])
         lane2_metric.metric("Lane 2", lane_counts[1])
