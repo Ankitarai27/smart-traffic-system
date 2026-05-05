@@ -1,26 +1,29 @@
 import tempfile
+import time
 
 import cv2
 import numpy as np
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
-
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Control System")
 
 st.markdown(
     """
+
 Use **Smooth playback** for a normal running video.
 Use **Analytics mode** for lane counting and detection overlays.
 For faster analytics, increase frame skipping and reduce inference resolution.
 """
 )
 
+
 playback_mode = st.sidebar.radio("Playback mode", ["Smooth playback", "Analytics mode"], index=0)
 run_detection = st.sidebar.checkbox("Run YOLO vehicle detection", value=True)
 show_boxes = st.sidebar.checkbox("Show vehicle bounding boxes", value=True)
 box_color_name = st.sidebar.selectbox("Bounding box color", ["Green", "Red", "Blue", "Yellow"])
+
 process_every_n = st.sidebar.slider("Process every Nth frame", min_value=1, max_value=12, value=4)
 display_every_n = st.sidebar.slider("Display every Nth frame", min_value=1, max_value=6, value=2)
 infer_size = st.sidebar.select_slider("Inference resolution", options=[320, 416, 512, 640], value=416)
@@ -96,6 +99,7 @@ if uploaded_file is not None:
                                 lane_counts[i] += 1
 
                         if show_boxes and should_display:
+
                             cv2.rectangle(frame, (x1, y1), (x2, y2), BOX_COLORS[box_color_name], 2)
                             cv2.putText(
                                 frame,
@@ -108,7 +112,6 @@ if uploaded_file is not None:
                             )
 
                 cached_lane_counts = lane_counts
-
             if should_display:
                 for i, region in enumerate(LANE_REGIONS):
                     cv2.polylines(frame, [region], True, (255, 0, 0), 2)
