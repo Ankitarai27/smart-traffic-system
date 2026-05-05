@@ -1,6 +1,5 @@
 import tempfile
 import time
-from pathlib import Path
 
 import cv2
 import numpy as np
@@ -11,7 +10,7 @@ from ultralytics import YOLO
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Control System")
 
-st.markdown("Upload a video to see **LIVE AI Traffic Analysis**")
+st.markdown("Upload a video and the processed output will start immediately with live vehicle detection overlays.")
 
 # Sidebar controls
 show_boxes = st.sidebar.checkbox("Show bounding boxes", True)
@@ -38,7 +37,11 @@ uploaded_file = st.file_uploader("Upload Traffic Video", type=["mp4"])
 # ================= MAIN =================
 if uploaded_file is not None:
 
-    st.success("Video uploaded!")
+    st.success("Video uploaded! Starting live detection...")
+
+    # reset previous chart data for this run
+    with open("traffic_data.csv", "w") as f:
+        f.write("")
 
     # Save uploaded file
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
@@ -58,7 +61,13 @@ if uploaded_file is not None:
 
     width, height = 1280, 720
 
-    stframe = st.empty()
+    video_col, stats_col = st.columns([4, 1])
+    with video_col:
+        stframe = st.empty()
+    with stats_col:
+        lane1_metric = st.empty()
+        lane2_metric = st.empty()
+        active_lane_metric = st.empty()
     progress = st.progress(0)
 
     frame_index = 0
@@ -145,7 +154,11 @@ if uploaded_file is not None:
         with open("traffic_data.csv", "a") as f:
             f.write(f"{cached_lane_counts[0]},{cached_lane_counts[1]}\n")
 
-        # 🔥 LIVE VIDEO (FIXED)
+        lane1_metric.metric("Lane 1 vehicles", cached_lane_counts[0])
+        lane2_metric.metric("Lane 2 vehicles", cached_lane_counts[1])
+        active_lane_metric.metric("Green lane", active_lane + 1)
+
+        # 🔥 LIVE processed output video
         stframe.image(frame, channels="BGR", use_container_width=True)
 
         # smooth playback
