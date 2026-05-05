@@ -11,13 +11,12 @@ from ultralytics import YOLO
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
 st.title("🚦 Smart Traffic Control System")
 
-st.markdown("Upload a video to see live detection + emergency priority")
+st.markdown("Upload a video to see **LIVE AI Traffic Analysis**")
 
-# Sidebar
+# Sidebar controls
 show_boxes = st.sidebar.checkbox("Show bounding boxes", True)
 process_every_n = st.sidebar.slider("Process every N frames", 1, 8, 3)
 infer_size = st.sidebar.select_slider("Resolution", [320, 416, 512, 640], value=416)
-save_output = st.sidebar.checkbox("Save analyzed video", True)
 
 BOX_COLOR = (0, 255, 0)
 
@@ -53,31 +52,11 @@ if uploaded_file is not None:
         st.error("❌ Cannot open video")
         st.stop()
 
-    # FPS FIX
     fps = cap.get(cv2.CAP_PROP_FPS)
     if fps is None or fps <= 1 or fps > 60:
         fps = 25
 
     width, height = 1280, 720
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    # ===== VIDEO WRITER =====
-    writer = None
-    output_path = None
-
-    if save_output:
-        output_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-        output_path = output_file.name
-
-        writer = cv2.VideoWriter(
-            output_path,
-            cv2.VideoWriter_fourcc(*"mp4v"),  # ✅ important fix
-            fps,
-            (width, height)
-        )
-
-        if not writer.isOpened():
-            st.error("❌ VideoWriter failed")
 
     stframe = st.empty()
     progress = st.progress(0)
@@ -129,7 +108,7 @@ if uploaded_file is not None:
         # Signal logic
         active_lane = int(np.argmax(cached_lane_counts))
 
-        # Emergency (bus as ambulance)
+        # Emergency detection (bus = ambulance simulation)
         emergency = any(label == "bus" for _, _, _, _, label in last_boxes)
 
         if emergency:
@@ -145,7 +124,7 @@ if uploaded_file is not None:
                 cv2.putText(frame, label, (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, BOX_COLOR, 2)
 
-        # Draw lanes
+        # Draw lanes + signal
         for i, region in enumerate(LANE_REGIONS):
             color = (0, 255, 0) if i == active_lane else (0, 0, 255)
 
@@ -162,51 +141,27 @@ if uploaded_file is not None:
                         cv2.FONT_HERSHEY_SIMPLEX,
                         1, color, 3)
 
-        # Save CSV
+        # Save traffic data
         with open("traffic_data.csv", "a") as f:
             f.write(f"{cached_lane_counts[0]},{cached_lane_counts[1]}\n")
 
-        # Show live frame
-        stframe.image(frame, channels="BGR")
+        # 🔥 LIVE VIDEO (FIXED)
+        stframe.image(frame, channels="BGR", use_container_width=True)
 
-        if writer:
-            writer.write(frame)
+        # smooth playback
+        time.sleep(1 / fps)
 
         frame_index += 1
 
-        if frame_count > 0:
-            progress.progress(min(frame_index / frame_count, 1.0))
+        progress.progress(min(frame_index / 1000, 1.0))
 
     cap.release()
-
-    if writer:
-        writer.release()
-
     progress.empty()
 
-    # ===== FINAL VIDEO =====
-    if save_output and output_path:
-        st.success("✅ Analyzed video ready")
-
-        time.sleep(2)
-
-        file_size = Path(output_path).stat().st_size
-        st.write(f"Video size: {file_size} bytes")
-
-        if file_size > 1000:
-            with open(output_path, "rb") as f:
-                st.video(f.read())
-        else:
-            st.error("❌ Video file is empty")
-
-    # Cleanup
-    try:
-        Path(video_path).unlink()
-    except:
-        pass
+    st.success("✅ Live analysis completed")
 
 
-# ===== GRAPH =====
+# 📊 Graph
 st.subheader("📊 Traffic Data")
 
 try:
