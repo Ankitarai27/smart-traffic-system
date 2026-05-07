@@ -119,6 +119,254 @@
 #     os.remove(tfile.name)
 
 
+
+
+
+
+# import tempfile
+# import cv2
+# import numpy as np
+# import pandas as pd
+# import streamlit as st
+# from ultralytics import YOLO
+# import os
+
+# st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
+# st.title("🚦 High-Performance Traffic AI")
+
+# # --- TURBO SETTINGS ---
+# st.sidebar.header("Turbo Settings")
+# # Defaulting to 6 for maximum speed; increase if still laggy
+# frame_skip = st.sidebar.slider("Speed Boost (Skip Frames)", 1, 15, 6)
+# model_res = st.sidebar.selectbox("Inference Resolution (Lower = Faster)", [320, 640], index=0)
+# show_boxes = st.sidebar.checkbox("Show detection boxes", False)
+
+# LANE_REGIONS = [
+#     np.array([[0, 200], [640, 200], [640, 720], [0, 720]]),
+#     np.array([[640, 200], [1280, 200], [1280, 720], [640, 720]]),
+# ]
+# VEHICLES = {"car", "truck", "bus", "motorbike", "motorcycle"}
+
+# @st.cache_resource
+# def load_model():
+#     # Use Nano model for speed
+#     return YOLO("yolov8n.pt")
+
+# uploaded_file = st.file_uploader("Upload Video", type=["mp4", "mov", "avi"])
+
+# if uploaded_file:
+#     # Save the upload to a temp file
+#     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+#     tfile.write(uploaded_file.read())
+#     tfile.close() 
+
+#     cap = cv2.VideoCapture(tfile.name)
+#     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+#     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#     fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    
+#     # Pre-calculate output path
+#     output_path = "fast_output.mp4"
+#     fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
+#     writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+#     # UI Layout
+#     st_frame = st.empty()
+#     m_cols = st.columns(3)
+#     m1, m2, m3 = m_cols[0].empty(), m_cols[1].empty(), m_cols[2].empty()
+
+#     model = load_model()
+#     frame_idx = 0
+#     lane_counts = [0, 0]
+#     traffic_history = []
+
+#     while cap.isOpened():
+#         ret, frame = cap.read()
+#         if not ret:
+#             break
+
+#         # --- OPTIMIZATION 1: FRAME SKIPPING ---
+#         if frame_idx % frame_skip == 0:
+#             # OPTIMIZATION 2: LOWER RESOLUTION (imgsz=320)
+#             results = model.predict(frame, verbose=False, imgsz=model_res, conf=0.4)[0]
+#             lane_counts = [0, 0]
+
+#             for box in results.boxes:
+#                 label = model.names[int(box.cls[0])]
+#                 if label in VEHICLES:
+#                     x1, y1, x2, y2 = map(int, box.xyxy[0])
+#                     cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                    
+#                     for i, region in enumerate(LANE_REGIONS):
+#                         if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
+#                             lane_counts[i] += 1
+                    
+#                     if show_boxes:
+#                         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+#         # Draw Permanent UI Overlay
+#         active = int(np.argmax(lane_counts))
+#         for i, region in enumerate(LANE_REGIONS):
+#             cv2.polylines(frame, [region], True, (255, 0, 0), 2)
+#             color = (0, 255, 0) if i == active else (0, 0, 255)
+#             cv2.putText(frame, f"Lane {i+1}: {lane_counts[i]}", (region[0][0]+20, region[0][1]+40), 
+#                         cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
+
+#         writer.write(frame)
+#         traffic_history.append(lane_counts)
+
+#         # --- OPTIMIZATION 3: UI THROTTLING ---
+#         # Update preview every few frames to reduce browser overhead
+#         if frame_idx % (frame_skip * 2) == 0:
+#             # FIXED: Updated use_column_width to use_container_width
+#             st_frame.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), 
+#                            channels="RGB", 
+#                            use_container_width=True)
+#             m1.metric("Lane 1 Count", lane_counts[0])
+#             m2.metric("Lane 2 Count", lane_counts[1])
+#             m3.metric("Green Status", f"Lane {active + 1}")
+
+#         frame_idx += 1
+
+#     cap.release()
+#     writer.release()
+    
+#     st.success("✅ Fast Processing Finished!")
+    
+#     # Display the final video
+#     with open(output_path, 'rb') as f:
+#         st.video(f.read())
+    
+#     # Charts
+#     df = pd.DataFrame(traffic_history, columns=["Lane 1", "Lane 2"])
+#     st.line_chart(df)
+    
+#     # Cleanup
+#     os.remove(tfile.name)
+
+
+# import tempfile
+# import cv2
+# import numpy as np
+# import pandas as pd
+# import streamlit as st
+# from ultralytics import YOLO
+# import os
+
+# st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
+# st.title("🚦 Smart Traffic Live AI")
+
+# # --- TURBO SETTINGS ---
+# st.sidebar.header("Turbo Settings")
+# frame_skip = st.sidebar.slider("Speed Boost (Skip Frames)", 1, 15, 6)
+# model_res = st.sidebar.selectbox("Inference Resolution", [320, 640], index=0)
+# # Changed default to True so you see names immediately
+# show_boxes = st.sidebar.checkbox("Show detection labels", True) 
+
+# LANE_REGIONS = [
+#     np.array([[0, 200], [640, 200], [640, 720], [0, 720]]),
+#     np.array([[640, 200], [1280, 200], [1280, 720], [640, 720]]),
+# ]
+# VEHICLES = {"car", "truck", "bus", "motorbike", "motorcycle"}
+
+# @st.cache_resource
+# def load_model():
+#     return YOLO("yolov8n.pt")
+
+# uploaded_file = st.file_uploader("Upload Video", type=["mp4", "mov", "avi"])
+
+# if uploaded_file:
+#     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+#     tfile.write(uploaded_file.read())
+#     tfile.close() 
+
+#     cap = cv2.VideoCapture(tfile.name)
+    
+#     # UI Layout
+#     st_frame = st.empty()
+#     m_cols = st.columns(3)
+#     m1, m2, m3 = m_cols[0].empty(), m_cols[1].empty(), m_cols[2].empty()
+
+#     model = load_model()
+#     frame_idx = 0
+#     lane_counts = [0, 0]
+#     traffic_history = []
+#     current_detections = [] # To store names for skipped frames
+
+#     # Processing Loop
+#     while cap.isOpened():
+#         ret, frame = cap.read()
+#         if not ret:
+#             break
+
+#         # AI Processing (with Frame Skipping)
+#         if frame_idx % frame_skip == 0:
+#             results = model.predict(frame, verbose=False, imgsz=model_res, conf=0.4)[0]
+#             lane_counts = [0, 0]
+#             current_detections = [] 
+
+#             for box in results.boxes:
+#                 label = model.names[int(box.cls[0])]
+#                 if label in VEHICLES:
+#                     x1, y1, x2, y2 = map(int, box.xyxy[0])
+#                     cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                    
+#                     for i, region in enumerate(LANE_REGIONS):
+#                         if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
+#                             lane_counts[i] += 1
+                    
+#                     # Store data to draw on screen
+#                     current_detections.append((x1, y1, x2, y2, label))
+
+#         # --- DRAW VEHICLE NAMES ---
+#         if show_boxes:
+#             for (x1, y1, x2, y2, label) in current_detections:
+#                 # Draw green box
+#                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+#                 # Draw label background
+#                 cv2.rectangle(frame, (x1, y1 - 20), (x1 + 80, y1), (0, 255, 0), -1)
+#                 # Draw vehicle name text
+#                 cv2.putText(frame, label, (x1, y1 - 5), 
+#                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+
+#         # Drawing UI Overlay (Lanes)
+#         active = int(np.argmax(lane_counts))
+#         for i, region in enumerate(LANE_REGIONS):
+#             cv2.polylines(frame, [region], True, (255, 0, 0), 2)
+#             color = (0, 255, 0) if i == active else (0, 0, 255)
+#             cv2.putText(frame, f"Lane {i+1}: {lane_counts[i]}", (region[0][0]+20, region[0][1]+40), 
+#                         cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
+
+#         # Update Analytics Data
+#         traffic_history.append(lane_counts)
+
+#         # Update Preview UI
+#         if frame_idx % (frame_skip * 2) == 0:
+#             st_frame.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), 
+#                            channels="RGB", 
+#                            use_container_width=True)
+#             m1.metric("Lane 1 Count", lane_counts[0])
+#             m2.metric("Lane 2 Count", lane_counts[1])
+#             m3.metric("Green Status", f"Lane {active + 1}")
+
+#         frame_idx += 1
+
+#     cap.release()
+#     st.success("✅ Fast Processing Finished!")
+    
+#     # Show Final Graph
+#     st.subheader("📊 Historical Traffic Trends")
+#     df = pd.DataFrame(traffic_history, columns=["Lane 1", "Lane 2"])
+#     st.line_chart(df)
+    
+#     # Cleanup
+#     if os.path.exists(tfile.name):
+#         os.remove(tfile.name)
+
+
+
+
+
 import tempfile
 import cv2
 import numpy as np
@@ -128,45 +376,38 @@ from ultralytics import YOLO
 import os
 
 st.set_page_config(page_title="Smart Traffic Dashboard", layout="wide")
-st.title("🚦 High-Performance Traffic AI")
+st.title("🚦 Smart Traffic Live AI")
 
 # --- TURBO SETTINGS ---
 st.sidebar.header("Turbo Settings")
-# Defaulting to 6 for maximum speed; increase if still laggy
-frame_skip = st.sidebar.slider("Speed Boost (Skip Frames)", 1, 15, 6)
-model_res = st.sidebar.selectbox("Inference Resolution (Lower = Faster)", [320, 640], index=0)
-show_boxes = st.sidebar.checkbox("Show detection boxes", False)
+frame_skip = st.sidebar.slider("Speed Boost (Skip Frames)", 1, 15, 5)
+model_res = st.sidebar.selectbox("Inference Resolution", [320, 640], index=0)
+show_boxes = st.sidebar.checkbox("Show detection labels", True) 
 
+# Values optimized to center the detection zones on the actual highway lanes
 LANE_REGIONS = [
-    np.array([[0, 200], [640, 200], [640, 720], [0, 720]]),
-    np.array([[640, 200], [1280, 200], [1280, 720], [640, 720]]),
+    # Lane 1: Center-Left Lane (Where cars approach from the horizon)
+    np.array([[350, 150], [950, 150], [950, 520], [350, 520]]),
+    
+    # Lane 2: Center-Right Lane
+    np.array([[1020, 150], [1620, 150], [1620, 520], [1020, 520]]),
 ]
+
 VEHICLES = {"car", "truck", "bus", "motorbike", "motorcycle"}
 
 @st.cache_resource
 def load_model():
-    # Use Nano model for speed
     return YOLO("yolov8n.pt")
 
 uploaded_file = st.file_uploader("Upload Video", type=["mp4", "mov", "avi"])
 
 if uploaded_file:
-    # Save the upload to a temp file
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     tfile.write(uploaded_file.read())
     tfile.close() 
 
     cap = cv2.VideoCapture(tfile.name)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
     
-    # Pre-calculate output path
-    output_path = "fast_output.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
-    writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-
-    # UI Layout
     st_frame = st.empty()
     m_cols = st.columns(3)
     m1, m2, m3 = m_cols[0].empty(), m_cols[1].empty(), m_cols[2].empty()
@@ -175,67 +416,73 @@ if uploaded_file:
     frame_idx = 0
     lane_counts = [0, 0]
     traffic_history = []
+    current_detections = [] 
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        # --- OPTIMIZATION 1: FRAME SKIPPING ---
+        # AI Processing
         if frame_idx % frame_skip == 0:
-            # OPTIMIZATION 2: LOWER RESOLUTION (imgsz=320)
-            results = model.predict(frame, verbose=False, imgsz=model_res, conf=0.4)[0]
+            results = model.predict(frame, verbose=False, imgsz=model_res, conf=0.35)[0]
             lane_counts = [0, 0]
+            current_detections = [] 
 
             for box in results.boxes:
                 label = model.names[int(box.cls[0])]
                 if label in VEHICLES:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                    # Use center-bottom point for more accurate lane assignment
+                    cx = (x1 + x2) // 2
+                    cy = y2 
                     
                     for i, region in enumerate(LANE_REGIONS):
                         if cv2.pointPolygonTest(region, (cx, cy), False) >= 0:
                             lane_counts[i] += 1
                     
-                    if show_boxes:
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    current_detections.append((x1, y1, x2, y2, label))
 
-        # Draw Permanent UI Overlay
+        # --- IMPROVED DRAWING ---
+        if show_boxes:
+            for (x1, y1, x2, y2, label) in current_detections:
+                # Green Box
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                # Label with better visibility
+                cv2.putText(frame, label.upper(), (x1, y1 - 10), 
+                            cv2.FONT_HERSHEY_DUPLEX, 0.7, (0, 255, 0), 2)
+
+        # Draw Lanes with distinct colors
         active = int(np.argmax(lane_counts))
         for i, region in enumerate(LANE_REGIONS):
-            cv2.polylines(frame, [region], True, (255, 0, 0), 2)
+            # Blue for boundary
+            cv2.polylines(frame, [region], True, (255, 100, 0), 2)
+            
+            # Status Text
             color = (0, 255, 0) if i == active else (0, 0, 255)
-            cv2.putText(frame, f"Lane {i+1}: {lane_counts[i]}", (region[0][0]+20, region[0][1]+40), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
+            status_text = "GREEN" if i == active else "RED"
+            cv2.putText(frame, f"Lane {i+1}: {lane_counts[i]} ({status_text})", 
+                        (region[0][0], region[0][1] - 10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
 
-        writer.write(frame)
         traffic_history.append(lane_counts)
 
-        # --- OPTIMIZATION 3: UI THROTTLING ---
-        # Update preview every few frames to reduce browser overhead
         if frame_idx % (frame_skip * 2) == 0:
-            # FIXED: Updated use_column_width to use_container_width
             st_frame.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), 
                            channels="RGB", 
                            use_container_width=True)
-            m1.metric("Lane 1 Count", lane_counts[0])
-            m2.metric("Lane 2 Count", lane_counts[1])
-            m3.metric("Green Status", f"Lane {active + 1}")
+            m1.metric("Lane 1 Wait List", lane_counts[0])
+            m2.metric("Lane 2 Wait List", lane_counts[1])
+            m3.metric("Current Priority", f"Lane {active + 1}")
 
         frame_idx += 1
 
     cap.release()
-    writer.release()
+    st.success("✅ Smart Traffic Analysis Finished!")
     
-    st.success("✅ Fast Processing Finished!")
-    
-    # Display the final video
-    with open(output_path, 'rb') as f:
-        st.video(f.read())
-    
-    # Charts
+    # Graphs
     df = pd.DataFrame(traffic_history, columns=["Lane 1", "Lane 2"])
     st.line_chart(df)
     
-    # Cleanup
-    os.remove(tfile.name)
+    if os.path.exists(tfile.name):
+        os.remove(tfile.name)
